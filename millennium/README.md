@@ -8,19 +8,19 @@ The Shrew Millennium harvest program is essentially a telnet emulator.  It conne
 1. Set-up
 ------------
 
-### a. Server requirements ###
+### a. Server requirements
 
 Before you get started, look at the [HarvestRequirements server requirements] for running the script.  That page also covers some required set-up on your Innovative system.
 
-### b. Download the code ###   
+### b. Download the code  
 
 You'll want to grab the [http://code.google.com/p/shrew/downloads/list latest version of the code], and extract it to your desktop.  The .zip file includes two directories, `harvest` and `lookup`.  We'll be using the code in `harvest`.  The `harvest` directory includes a test script (`test.pl`), the main Perl module (`lib/InnopacTelnet.pm`), and some directories for the exported MARC records (`data`) and log files (`log`).
 
-### c. Edit test.pl ###   
+### c. Edit test.pl 
 
 You'll need to open `test.pl` with a text editor, and enter some [HarvestConfig configuration values] for the Innovative and FTP servers, as well as a few optional entries that control the behavior of the script.  
 
-### d. Upload the whole harvest directory to your server ### 
+### d. Upload the whole harvest directory to your server
 
 However you want to do that.
 
@@ -30,7 +30,7 @@ Running the script
 
 Jump on a command prompt, telnet to your server, and navigate to your uploaded harvest directory.  We're now going to issue some commands to make sure everything is working.  The test script is set to output its actions to the screen, so you can follow its progress. 
 
-### Full export ### 
+### Full export
 
 To run a full export, issue this command:
 
@@ -40,7 +40,7 @@ To run a full export, issue this command:
 
 The script will connect to your Innovative server and use the By Range Export to export all of your bib records.  Eventually, it should download a file called `full.marc` (or several files, if so configured) to the local `data` directory.
 
-### Incremental export ### 
+### Incremental export
 
 To run an incremental export, issue this command:
 
@@ -50,7 +50,7 @@ To run an incremental export, issue this command:
 
 The script will connect to your Innovative server and use Create Lists to find records added or modified over the past couple of days.  It will, by default, attempt to use an empty, unassigned review file of (at least) 5,000 records; if that fills up, however, it will use increasingly larger review files until it can get all modified records.  Eventually, the script will download a file called `modified-b.marc` to the `data` directory.
 
-### Expunged records ### 
+### Expunged records
 
 To find expunged records (that is, records that have been permanently deleted from the system), issue this command:
 
