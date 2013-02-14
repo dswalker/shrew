@@ -1,0 +1,21 @@
+{
+	"name": "dswalker/shrew",
+	"description": "Shrew 2",
+	"homepage": "http://library.csuprojects.org",
+	"repositories": [
+		{
+			"type": "pear",
+			"url": "http://pear.php.net"
+		}
+	],
+	
+	"require": {
+		"pear-pear/File_MARC": "*"
+	},
+	
+	"autoload": {
+		"psr-0": {
+			"Shrew": "src"
+		}
+	}
+}

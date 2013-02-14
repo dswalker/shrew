@@ -3,13 +3,8 @@ package InnopacTelnet;
 # Export records from an Innvoative Interface ILS using telnet emulation
 #
 # @author David Walker
-# @copyright 2010 California State University
-#
-# This code is based in part on the work of Alan Crump at Colorado State University
-#
-# @version $Id: InnopacTelnet.pm 90 2011-02-03 17:38:38Z dwalker@calstate.edu $
-# @link http://code.google.com/p/shrew/
-# @license http://www.gnu.org/licenses/
+# @author this code is based in part on the work of Alan Crump at Colorado State University
+# @copyright 2013 California State University
 
 use strict;
 use Carp;
@@ -477,7 +472,7 @@ sub getExpungedRecords()
 			}
 		}
 	
-		print FILE "$key\n";
+		print FILE "$key\t$date\n";
 		$x++;
 	}
 	
@@ -980,7 +975,7 @@ sub sendRecordsToMarcFile()
 		{
 			# add them in, but flip the date around
 		
-			$self->{'expunged_records'}->{$1} = "$4-$3-$2";
+			$self->{'expunged_records'}->{$1} = "$4-$2-$3";
 		}
 		
 		if ( $rec % 1000 == 0 )
