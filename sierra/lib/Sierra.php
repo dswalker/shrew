@@ -9,11 +9,42 @@
 class Sierra
 {
 	/**
+	 * @var string
+	 */
+	private $host;
+	
+	/**
+	 * @var string
+	 */
+	private $username;
+	
+	/**
+	 * @var string
+	 */
+	private $password;
+	
+	/**
+	 * @var string
+	 */
+	private $port;
+	
+	/**
+	 * @var string
+	 */
+	private $dbname;	
+	
+	/**
 	 * @var PDO
 	 */
 	
-	private $pdo;	
-
+	private $pdo;
+	
+	/**
+	 * @var int
+	 */
+	
+	private $total;
+	
 	/**
 	 * Create new Sierra access object
 	 * 
@@ -26,67 +57,48 @@ class Sierra
 	
 	public function __construct($host, $username, $password, $port = '1032', $dbname = 'iii')
 	{
-		$this->pdo = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $username, $password);
-		$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$this->host = $host;
+		$this->username = $username;
+		$this->password = $password;
+		$this->port = $port;
+		$this->dbname = $dbname;
 	}
 	
 	/**
-	 * Fetch records modified since the given timestamp
+	 * Export bibliographic records (and attached item records) modified AFTER the supplied date
 	 * 
-	 * @param int $timestamp  unix timestamp
+	 * @param int $timestamp    unix timestamp
+	 * @param string $location  path to file to create
 	 */
 	
-	public function getRecordsModifiedSince($timestamp, $location = "modified.marc")
+	public function exportRecordsModifiedAfter($timestamp, $location)
 	{
 		$date = gmdate("Y-m-d H:i:s", $timestamp);
 		
-		$marc_records = array();
-		
-		// we'll get just the record id's for those records
-		// modified since our supplied date
+		// record id's for those records modified since our supplied date
 		
 		$results = $this->getModifiedRecordData($date);
 		
-		$total = count($results);
+		// make 'em
 		
-		if ( $total > 0 )
-		{
-			$x = 1;
-			
-			$marc21_file = fopen($location, "wb");
-		
-			// then create each marc record based on the id
-			
-			foreach ( $results as $result )
-			{
-				$marc_record = null;
-				
-				$id = $result['record_num'];
-				
-				// deleted record
-				
-				if ( $result['deletion_date_gmt'] != '' )
-				{
-					$marc_record = $this->createDeletedRecord($id);
-				}
-				else // active record
-				{
-					$marc_record = $this->getBibRecord($id);
-				}
+		$this->createRecords($location, 'modified', $results);
+	}
 	
-				if ( $marc_record != null )
-				{
-					fwrite($marc21_file, $marc_record->toRaw());
-					
-					// file_put_contents('data/' . $result['record_num'] . '.xml', $marc_record->toXML());
-				}
-				
-				$this->log("Fetching record '$id' ($x of $total)\n");
-				$x++;
-			}
-			
-			fclose($marc21_file);
-		}
+	/**
+	 * Export all bibliographic records (and attached item records) out of the Innovative system
+	 * 
+	 * @param string $location  path to file to create
+	 */
+	
+	public function exportRecords($location)
+	{
+		// get all record id's
+		
+		$results = $this->getAllRecordData();
+		
+		// make 'em
+		
+		$this->createRecords($location, 'full', $results);
 	}
 	
 	/**
@@ -115,7 +127,7 @@ class Sierra
 				sierra_view.bib_view
 			INNER JOIN 
 				sierra_view.varfield_view ON bib_view.id = varfield_view.record_id
-			INNER JOIN
+			LEFT JOIN
 				sierra_view.leader_field ON bib_view.id = leader_field.record_id
 			WHERE
 				bib_view.record_num = '$id'
@@ -161,9 +173,9 @@ class Sierra
 
 		$bib_field = new File_MARC_Data_Field('907');
 		$record->appendField($bib_field);
-		
 		$bib_field->appendSubfield(new File_MARC_Subfield('a', "b$id"));
-		// $bib_field->appendSubfield(new File_MARC_Subfield('b', trim($result['record_last_updated_gmt'])));
+		
+		// cataloging info fields
 		
 		$bib_field = new File_MARC_Data_Field('998');
 		$record->appendField($bib_field);
@@ -177,53 +189,60 @@ class Sierra
 		
 		foreach ( $results as $result )
 		{
-			if ( $result['marc_tag'] == null )
+			try
 			{
-				$result['marc_tag'] = 999;
-			}
-			
-			// skip 'old' 9xx tags that mess with the above
-			
-			if ( $result['marc_tag'] == '907' || $result['marc_tag'] == '998')
-			{
-				continue;
-			}
-			
-			// control field
-			
-			if ( (int) $result['marc_tag'] < 10 )
-			{
-				$control_field = new File_MARC_Control_Field($result['marc_tag'], $result['field_content']);
-				$record->appendField($control_field);
-			}
-			
-			// data field
-			
-			else 
-			{
-				$data_field = new File_MARC_Data_Field($result['marc_tag']);
-				$data_field->setIndicator(1, $result['marc_ind1']);
-				$data_field->setIndicator(2, $result['marc_ind2']);
-				
-				$content = $result['field_content'];
-				
-				$content_array  = explode('|', $content);
-				
-				foreach ( $content_array as $subfield )
+				if ( $result['marc_tag'] == null )
 				{
-					$code = substr($subfield, 0, 1);
-					$data = substr($subfield, 1);
-					
-					if ( $code == '')
-					{
-						continue;
-					}
-					
-					$subfield = new File_MARC_Subfield($code, trim($data));
-					$data_field->appendSubfield($subfield);
+					$result['marc_tag'] = 999;
 				}
 				
-				$record->appendField($data_field);
+				// skip 'old' 9xx tags that mess with the above
+				
+				if ( $result['marc_tag'] == '907' || $result['marc_tag'] == '998')
+				{
+					continue;
+				}
+				
+				// control field
+				
+				if ( (int) $result['marc_tag'] < 10 )
+				{
+					$control_field = new File_MARC_Control_Field($result['marc_tag'], $result['field_content']);
+					$record->appendField($control_field);
+				}
+				
+				// data field
+				
+				else 
+				{
+					$data_field = new File_MARC_Data_Field($result['marc_tag']);
+					$data_field->setIndicator(1, $result['marc_ind1']);
+					$data_field->setIndicator(2, $result['marc_ind2']);
+					
+					$content = $result['field_content'];
+					
+					$content_array  = explode('|', $content);
+					
+					foreach ( $content_array as $subfield )
+					{
+						$code = substr($subfield, 0, 1);
+						$data = substr($subfield, 1);
+						
+						if ( $code == '')
+						{
+							continue;
+						}
+						
+						$subfield = new File_MARC_Subfield($code, trim($data));
+						$data_field->appendSubfield($subfield);
+					}
+					
+					$record->appendField($data_field);
+				}
+			}
+			catch ( File_MARC_Exception $e )
+			{
+				trigger_error( $e->getMessage(), E_USER_WARNING );
 			}
 		}
 		
@@ -255,12 +274,78 @@ class Sierra
 	}
 	
 	/**
+	 * Create MARC records from a set of record id's
+	 *
+	 * @param array $results    id query
+	 * @param string $location  path to file to create
+	 */
+	
+	public function createRecords($location, $name, $results)
+	{
+		$this->total = count($results);
+		
+		// split them into chunks of 100k
+		
+		$chunks = array_chunk($results, 50000);
+		$x = 1; // file number
+		$y = 1; // number of records's processed
+		
+		foreach ( $chunks as $chunk )
+		{
+			// file to write to
+			
+			$marc21_file = fopen("$location/$name-$x.marc", "wb");
+			
+			// create each marc record based on the id
+			
+			foreach ( $chunk as $result )
+			{
+				$marc_record = null;
+			
+				$id = $result['record_num'];
+			
+				// deleted record
+			
+				if ( $result['deletion_date_gmt'] != '' )
+				{
+					$marc_record = $this->createDeletedRecord($id);
+				}
+				else // active record
+				{
+					$marc_record = $this->getBibRecord($id);
+				}
+			
+				if ( $marc_record != null )
+				{
+					fwrite($marc21_file, $marc_record->toRaw());
+				}
+			
+				$this->log("Fetching record '$id' (" . number_format($y) . " of " . number_format($this->total) . ")\n");
+				$y++;
+			}
+			
+			fclose($marc21_file);
+
+			$x++;
+			
+			// blank this so PDO will create a new connection
+			// otherwise after about ~70,000 queries the server 
+			// will drop the connection with an error
+			
+			$this->pdo = null; 
+		}		
+	}
+	
+	/**
 	 * Create a deleted record
+	 * 
+	 * This is essentially a placeholder record so we have something that represents a
+	 * record completely expunged from the system
 	 * 
 	 * @param int $id
 	 */
 	
-	public function createDeletedRecord($id)
+	protected function createDeletedRecord($id)
 	{
 		$record = new File_MARC_Record();
 		
@@ -280,10 +365,12 @@ class Sierra
 	}
 	
 	/**
-	 * Modified records query 
+	 * Return record id (and date information) for bibliographic records modified since the supplied date
+	 * 
+	 * @return array
 	 */
-	
-	protected function getModifiedRecordData($date, $limit = null, $offset = 0)
+
+	protected function getModifiedRecordData( $date, $limit = null, $offset = 0 )
 	{
 		$sql = trim("
 			SELECT
@@ -297,36 +384,46 @@ class Sierra
 			ORDER BY
 				record_last_updated_gmt DESC NULLS LAST 
 		");
-		
+
 		if ( $limit != null )
 		{
 			$sql .= " LIMIT $limit, $offset";
 		}
-		
+
 		return $this->getResults($sql, array(':modified_date' => $date));
 	}
-
+	
 	/**
-	 * Modified records count query
+	 * Return record id (and date information) for all bibliographic records in the system
+	 * 
+	 * @return array
 	 */
-		
-	protected function getModifiedCount($date)
+	
+	protected function getAllRecordData( $limit = null, $offset = 0 )
 	{
 		$sql = trim("
 			SELECT
-				count(record_num) AS total
+				record_metadata.record_num, record_metadata.record_last_updated_gmt, record_metadata.deletion_date_gmt
 			FROM
-				sierra_view.record_metadata 
+				sierra_view.record_metadata,
+				sierra_view.bib_view
 			WHERE
-				record_type_code = 'b' AND
-				campus_code = '' AND 
-				record_last_updated_gmt > :modified_date
+				record_metadata.record_type_code = 'b' AND
+				record_metadata.campus_code = '' AND
+				record_metadata.deletion_date_gmt IS NULL AND
+				bib_view.BCODE3 = '-' AND
+				sierra_view.record_metadata.id = sierra_view.bib_view.id
+			ORDER BY
+				record_last_updated_gmt DESC NULLS LAST
 		");
+
+		if ( $limit != null )
+		{
+			$sql .= " LIMIT $limit, $offset";
+		}		
 		
-		$results = $this->getResults($sql, array(':modified_date' => $date));
-		
-		return (int) $results[0]['total'];
-	}
+		return $this->getResults($sql);
+	}	
 
 	/**
 	 * Fetch results from the database
@@ -340,7 +437,7 @@ class Sierra
 	
 	protected function getResults($sql, array $params = null)
 	{
-		$statement = $this->pdo->prepare($sql);
+		$statement = $this->pdo()->prepare($sql);
 	
 		if ( ! $statement->execute($params) )
 		{
@@ -359,5 +456,20 @@ class Sierra
 	protected function log($message)
 	{
 		echo $message;
+	}
+	
+	/**
+	 * Lazy load PDO
+	 */
+	
+	protected function pdo()
+	{
+		if ( ! $this->pdo instanceof PDO )
+		{
+			$this->pdo = new PDO('pgsql:host=' . $this->host . ';port=' . $this->port . ';dbname=' . $this->dbname, $this->username, $this->password);
+			$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		}
+		
+		return $this->pdo;
 	}
 }
