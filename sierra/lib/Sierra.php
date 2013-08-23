@@ -177,21 +177,21 @@ class Sierra
 		// 0000's here get converted to correct lengths by File_MARC
 		
 		$leader = '00000'; // 00-04 - Record length
-		$leader .= $result['record_status_code']; // 05 - Record status
-		$leader .= $result['record_type_code']; // 06 - Type of record
-		$leader .= $result['bib_level_code']; // 07 - Bibliographic level
-		$leader .= $result['control_type_code']; // 08 - Type of control
-		$leader .= $result['char_encoding_scheme_code']; // 09 - Character coding scheme
+		$leader .= $this->getLeaderValue($result,'record_status_code'); // 05 - Record status
+		$leader .= $this->getLeaderValue($result,'record_type_code'); // 06 - Type of record
+		$leader .= $this->getLeaderValue($result,'bib_level_code'); // 07 - Bibliographic level
+		$leader .= $this->getLeaderValue($result,'control_type_code'); // 08 - Type of control
+		$leader .= $this->getLeaderValue($result,'char_encoding_scheme_code'); // 09 - Character coding scheme
 		$leader .= '2'; // 10 - Indicator count
 		$leader .= '2'; // 11 - Subfield code count
 		$leader .= '00000'; // 12-16 - Base address of data
-		$leader .= $result['encoding_level_code']; // 17 - Encoding level
-		$leader .= $result['descriptive_cat_form_code']; // 18 - Descriptive cataloging form
-		$leader .= $result['multipart_level_code']; // 19 - Multipart resource record level
+		$leader .= $this->getLeaderValue($result,'encoding_level_code'); // 17 - Encoding level
+		$leader .= $this->getLeaderValue($result,'descriptive_cat_form_code'); // 18 - Descriptive cataloging form
+		$leader .= $this->getLeaderValue($result,'multipart_level_code'); // 19 - Multipart resource record level
 		$leader .= '4'; // 20 - Length of the length-of-field portion
 		$leader .= '5'; // 21 - Length of the starting-character-position portion
 		$leader .= '0'; // 22 - Length of the implementation-defined portion
-		$leader .= '0'; // 23 - Undefined	
+		$leader .= '0'; // 23 - Undefined
 		
 		$record->setLeader($leader);
 		
@@ -604,5 +604,25 @@ class Sierra
 		}
 		
 		return $this->pdo;
+	}
+	
+	/**
+	 * Get the value out of the array or return a blank space
+	 * @param array $array
+	 * @param string $key
+	 */
+	
+	private function getLeaderValue(array $array, $key)
+	{
+		$value = $array[$key];
+		
+		if ( $value == "")
+		{
+			return " ";
+		}
+		else
+		{
+			return $value;
+		}
 	}
 }
