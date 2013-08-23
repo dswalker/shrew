@@ -83,6 +83,26 @@ class Sierra
 		
 		$this->createRecords($location, 'modified', $results);
 	}
+
+	/**
+	 * Export bibliographic records deleted AFTER the supplied date
+	 *
+	 * @param int $timestamp    unix timestamp
+	 * @param string $location  path to file to create
+	 */
+	
+	public function exportRecordsDeletedAfter($timestamp, $location)
+	{
+		$date = gmdate("Y-m-d H:i:s", $timestamp);
+	
+		// record id's for those records modified since our supplied date
+	
+		$results = $this->getDeletedRecordData($date);
+	
+		// make 'em
+	
+		$this->createRecords($location, 'modified', $results, true);
+	}	
 	
 	/**
 	 * Export all bibliographic records (and attached item records) out of the Innovative system
@@ -110,6 +130,8 @@ class Sierra
 	
 	public function getBibRecord($id)
 	{
+		// bib record query
+		
 		$sql = trim("
 			SELECT
 				bib_view.id,
@@ -144,9 +166,13 @@ class Sierra
 		
 		$record = new File_MARC_Record();
 	
-		// leader
+		// let's parse a few things, shall we
 		
 		$result = $results[0];
+		
+		$internal_id = $result[0]; // internal postgres id
+		
+		// leader
 		
 		// 0000's here get converted to correct lengths by File_MARC
 		
@@ -173,7 +199,7 @@ class Sierra
 
 		$bib_field = new File_MARC_Data_Field('907');
 		$record->appendField($bib_field);
-		$bib_field->appendSubfield(new File_MARC_Subfield('a', "b$id"));
+		$bib_field->appendSubfield(new File_MARC_Subfield('a', $this->getFullRecordId($id)));
 		
 		// cataloging info fields
 		
@@ -191,14 +217,9 @@ class Sierra
 		{
 			try
 			{
-				if ( $result['marc_tag'] == null )
-				{
-					$result['marc_tag'] = 999;
-				}
+				// skip missing tags and 'old' 9xx tags that mess with the above
 				
-				// skip 'old' 9xx tags that mess with the above
-				
-				if ( $result['marc_tag'] == '907' || $result['marc_tag'] == '998')
+				if ( $result['marc_tag'] == null || $result['marc_tag'] == '907' || $result['marc_tag'] == '998')
 				{
 					continue;
 				}
@@ -246,6 +267,29 @@ class Sierra
 			}
 		}
 		
+		// location codes
+		
+		$sql = trim("
+			SELECT location_code
+			FROM
+				sierra_view.bib_record_location
+			WHERE
+				bib_record_id = '$internal_id'
+		");
+		
+		$results = $this->getResults($sql);
+		
+		if ( count($results) > 0 )
+		{
+			$location_record = new File_MARC_Data_Field('907');
+			
+			foreach ( $results as $result )
+			{
+				$location_record->appendSubfield(new File_MARC_Subfield('b', trim($result['location_code'])));
+				$record->appendField($location_record);
+			}
+		}
+		
 		// item records
 		
 		$sql = trim("
@@ -276,11 +320,14 @@ class Sierra
 	/**
 	 * Create MARC records from a set of record id's
 	 *
-	 * @param array $results    id query
 	 * @param string $location  path to file to create
+	 * @param string $name      name of file to create
+	 * @param array $results    id query
+	 * @param bool $split       [optional] whether split the file into 50,000-record smaller files (default false)
+	 * 
 	 */
 	
-	public function createRecords($location, $name, $results)
+	public function createRecords($location, $name, $results, $split = false)
 	{
 		$this->total = count($results);
 		
@@ -290,11 +337,21 @@ class Sierra
 		$x = 1; // file number
 		$y = 1; // number of records's processed
 		
+		// file to write to
+		
+		if ( $split === false )
+		{
+			$marc21_file = fopen("$location/$name.marc", "wb");
+		}
+		
 		foreach ( $chunks as $chunk )
 		{
-			// file to write to
+			// file to write to (if broken into chunks)
 			
-			$marc21_file = fopen("$location/$name-$x.marc", "wb");
+			if ( $split === true )
+			{
+				$marc21_file = fopen("$location/$name-$x.marc", "wb");
+			}
 			
 			// create each marc record based on the id
 			
@@ -345,15 +402,18 @@ class Sierra
 	 * @param int $id
 	 */
 	
-	protected function createDeletedRecord($id)
+	public function createDeletedRecord($id)
 	{
 		$record = new File_MARC_Record();
+		
+		$control_field = new File_MARC_Control_Field('001', "deleted:$id");
+		$record->appendField($control_field);
 		
 		// bib id field
 		
 		$bib_field = new File_MARC_Data_Field('907');
 		$record->appendField($bib_field);
-		$bib_field->appendSubfield(new File_MARC_Subfield('a', "b$id"));
+		$bib_field->appendSubfield(new File_MARC_Subfield('a', $this->getFullRecordId($id)));
 		
 		// mark as deleted
 		
@@ -370,7 +430,7 @@ class Sierra
 	 * @return array
 	 */
 
-	protected function getModifiedRecordData( $date, $limit = null, $offset = 0 )
+	protected function getModifiedRecordData( $date )
 	{
 		$sql = trim("
 			SELECT
@@ -385,13 +445,32 @@ class Sierra
 				record_last_updated_gmt DESC NULLS LAST 
 		");
 
-		if ( $limit != null )
-		{
-			$sql .= " LIMIT $limit, $offset";
-		}
-
 		return $this->getResults($sql, array(':modified_date' => $date));
 	}
+	
+	/**
+	 * Return record id (and date information) for bibliographic records modified since the supplied date
+	 *
+	 * @return array
+	 */
+	
+	protected function getDeletedRecordData( $date )
+	{
+		$sql = trim("
+			SELECT
+				record_num, record_last_updated_gmt, deletion_date_gmt
+			FROM
+				sierra_view.record_metadata
+			WHERE
+				record_type_code = 'b' AND
+				campus_code = '' AND
+				deletion_date_gmt > :modified_date
+			ORDER BY
+				record_last_updated_gmt DESC NULLS LAST
+		");
+	
+		return $this->getResults($sql, array(':modified_date' => $date));
+	}	
 	
 	/**
 	 * Return record id (and date information) for all bibliographic records in the system
@@ -445,6 +524,51 @@ class Sierra
 		}
 	
 		return $statement->fetchAll();
+	}
+	
+	/**
+	 * The full record id, including starting period and check digit
+	 * 
+	 * @param string $id
+	 * @return string
+	 */
+	
+	protected function getFullRecordId($id)
+	{
+		return ".b$id" . $this->getCheckDigit($id);
+	}
+	
+	/**
+	 * Calculate Innovative Record number check digit
+	 * 
+	 * Thanks to mark matienzo (anarchivist) https://github.com/anarchivist/drupal-shrew/
+	 * 
+	 * @param string $recnum
+	 * @return string
+	 */
+	
+	protected function getCheckDigit($recnum) 
+	{
+		$seq = array_reverse(str_split($recnum));
+		$sum = 0;
+		$multiplier = 2;
+		
+		foreach ($seq as $digit)
+		{
+			$digit *= $multiplier;
+			$sum += $digit;
+			$multiplier++;
+		}
+		$check = $sum % 11;
+		
+		if ($check == 10)
+		{
+		    return 'x';
+		}
+		else
+		{
+    		return strval($check);
+    	}
 	}
 	
 	/**
