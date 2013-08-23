@@ -285,9 +285,10 @@ class Sierra
 			
 			foreach ( $results as $result )
 			{
-				$location_record->appendSubfield(new File_MARC_Subfield('b', trim($result['location_code'])));
-				$record->appendField($location_record);
+				$location_record->appendSubfield(new File_MARC_Subfield('b', trim((string)$result['location_code'])));
 			}
+			
+			$record->appendField($location_record);
 		}
 		
 		// item records
@@ -360,7 +361,7 @@ class Sierra
 				$marc_record = null;
 			
 				$id = $result['record_num'];
-			
+				
 				// deleted record
 			
 				if ( $result['deletion_date_gmt'] != '' )
@@ -371,17 +372,20 @@ class Sierra
 				{
 					$marc_record = $this->getBibRecord($id);
 				}
-			
+				
 				if ( $marc_record != null )
 				{
 					fwrite($marc21_file, $marc_record->toRaw());
 				}
 			
-				$this->log("Fetching record '$id' (" . number_format($y) . " of " . number_format($this->total) . ")\n");
+				$this->log("Fetched record '$id' (" . number_format($y) . " of " . number_format($this->total) . ")\n");
 				$y++;
 			}
 			
-			fclose($marc21_file);
+			if ( $split === true )
+			{
+				fclose($marc21_file);
+			}
 
 			$x++;
 			
@@ -390,7 +394,12 @@ class Sierra
 			// will drop the connection with an error
 			
 			$this->pdo = null; 
-		}		
+		}
+		
+		if ( $split === false )
+		{
+			fclose($marc21_file);
+		}
 	}
 	
 	/**
