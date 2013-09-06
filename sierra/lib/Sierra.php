@@ -330,6 +330,11 @@ class Sierra
 	
 	public function createRecords($location, $name, $results, $split = false)
 	{
+		if (! is_dir($location) )
+		{
+			throw new Exception("location must be a valid directory, you supplied '$location'");
+		}
+		
 		$this->total = count($results);
 		
 		// split them into chunks of 100k
