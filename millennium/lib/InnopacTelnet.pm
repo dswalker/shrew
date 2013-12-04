@@ -153,7 +153,7 @@ sub exportRecords()
 			
 			if ( $self->{'exceeded'} == 1 ) # yup
 			{
-				$self->{'exceeded'} == 0; # reset the error
+				$self->{'exceeded'} = 0; # reset the error
 				$gone_over++; # count these occurances
 				
 				# try a new export, this time with a smaller amount
