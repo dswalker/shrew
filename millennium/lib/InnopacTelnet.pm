@@ -7,6 +7,7 @@ package InnopacTelnet;
 # @copyright 2013 California State University
 
 use strict;
+# use warnings; ## TODO
 use Carp;
 use Cwd;
 use IO::Pty();
@@ -42,45 +43,14 @@ sub new
 
 	# ensure required params
 	
-	if ( $hostname eq undef )
-	{
-		confess("you must specify a host for the innovative server");
-	}
-
-	if ( $login eq undef )
-	{
-		confess("you must specify a telnet username to login to the innovative server");
-	}
-
-	if ( $password eq undef )
-	{
-		confess("you must specify a telnet password to login to the innovative server");
-	}
-
-	if ( $internal_initials eq undef )
-	{
-		confess("you must specify initials (internal username) to use on the innovative server");
-	}
-
-	if ( $internal_password eq undef )
-	{
-		confess("you must specify an internal password to use on the innovative server");
-	}
-
-	if ( $ftp_host eq undef )
-	{
-		confess("you must specify an ftp host to where you will ftp the records");
-	}
-	
-	if ( $ftp_username eq undef )
-	{
-		confess("you must specify a username for the ftp server");
-	}
-	
-	if ( $ftp_password eq undef )
-	{
-		confess("you must specify a password for the ftp server");
-	}
+	defined $hostname          or confess("you must specify a host for the innovative server");
+	defined $login             or confess("you must specify a telnet username to login to the innovative server");
+	defined $password          or confess("you must specify a telnet password to login to the innovative server");
+    defined $internal_initials or confess("you must specify initials (internal username) to use on the innovative server");
+	defined $internal_password or confess("you must specify an internal password to use on the innovative server");
+	defined $ftp_host          or confess("you must specify an ftp host to where you will ftp the records");
+	defined $ftp_username      or confess("you must specify a username for the ftp server");
+	defined $ftp_password      or confess("you must specify a password for the ftp server");
 	
 	# make 'em properties
 	
@@ -135,7 +105,7 @@ sub exportRecords()
 	
 	# we've set to export in batches
 	
-	if ( $chunks ne undef )
+	if ( defined $chunks )
 	{
 		# remove any non-digits entered in the number
 	
@@ -149,7 +119,7 @@ sub exportRecords()
 	{
 		my $export_filename = "full.marc";
 		
-		if ( $chunks ne undef )
+		if ( defined $chunks )
 		{	
 			$export_filename = "full-$x.marc";
 		}
@@ -162,7 +132,7 @@ sub exportRecords()
 			
 			# unless we've been told not to export or we didn't get any records . . .
 			
-			if ( $no_export eq undef && $total > 0)
+			if ( ! defined $no_export && $total > 0)
 			{
 				# ftp it off the innovative server
 						
@@ -170,7 +140,7 @@ sub exportRecords()
 					
 				# download the file from the (remote) ftp server to here, removing it from the ftp location
 				
-				if ( $local_path ne undef )
+				if ( ! defined $local_path )
 				{
 					$self->downloadFile($export_filename, $local_path);
 				}
@@ -205,7 +175,7 @@ sub exportRecords()
 					
 				}
 				
-				if ( $chunks eq undef || $chunks > 100000 || $gone_over > 10 || $end <= $start)
+				if ( ! defined($chunks) || $chunks > 100000 || $gone_over > 10 || $end <= $start)
 				{
 					# uh oh, either we were asked to (a) do the whole database, or 
 					# (b) in large chunks, or (c) have tried to auto-reduce too many time, or 
@@ -275,7 +245,7 @@ sub exportRecordsModifiedToday()
 	
 	# get records whose attached item records have been modified today
 
-	if ( $bib_only eq undef )
+	if ( ! defined $bib_only )
 	{
 		$item_export = $self->exportRecordsModifiedAfter('i', $year, $month, $day, "modified-i.marc", $local_path, undef, $min);
 	}
@@ -309,7 +279,7 @@ sub exportRecordsModifiedAfter()
 {
 	my ( $self, $type, $year, $month, $day, $export_filename, $local_path, $bcode, $min ) = @_;
 	
-	if ( $export_filename eq undef )
+	if ( ! defined $export_filename )
 	{
 		$export_filename = "modified-$type.marc";
 	}
@@ -361,7 +331,7 @@ sub exportRecordsModifiedAfter()
 		
 		# now download the file from the (remote) ftp server to a local directory 
 		
-		if ( $local_path ne undef )
+		if ( defined $local_path )
 		{
 			$self->downloadFile($export_filename, $local_path);
 		}
@@ -398,9 +368,9 @@ sub getExpungedRecords()
 	
 	# date check & normalization
 		
-	if ( $day ne undef )
+	if ( defined $day )
 	{	
-		if ( $year eq undef || $month eq undef )
+		if ( ! defined $year || ! defined $month )
 		{
 			confess("you must specify a year and month if you supply a day");
 		}
@@ -408,22 +378,16 @@ sub getExpungedRecords()
 		$day = sprintf("%02d", $day);
 	}
 
-	if ( $month ne undef )
+	if ( defined $month )
 	{
-		if ( $year eq undef )
-		{
-			confess("you must specify a year if you supply a month");
-		}
+		defined $year or confess("you must specify a year if you supply a month");
 		
 		$month = sprintf("%02d", $month);
 	}
 	
-	if ( $year ne undef )
+	if ( defined $year )
 	{
-		if ( length($year) != 4  )
-		{
-			confess("you must specify a four digit year, you supplied '$year'");
-		}
+        $year =~ /^\d{4}/ or confess("you must specify a four digit year, you supplied '$year'");
 	}
 	
 	my $date_supplied = $year . $month . $day;
@@ -589,7 +553,7 @@ sub initialize()
 			-errmode => "return"
 			);
 			
-		if ( $savekey != undef )
+		if ( defined $savekey )
 		{
 			$self->log("\n\t need to save key, saving . . . ");
 			$ts->print("yes");
@@ -738,7 +702,7 @@ sub choose()
 
 	$self->log("choosing $cmd > $message . . . ");
 
-	if ( $force eq undef )
+	if ( ! defined $force )
 	{
 		# make sure its on the screen before we chose it or else we could be lost
 	
@@ -746,7 +710,7 @@ sub choose()
 
 		# didn't find it
 
-		if ( $match eq undef )
+		if ( ! defined $match )
 		{
 			# see if system is using a non-standard menu value
 			
@@ -756,11 +720,8 @@ sub choose()
 						
 			# nothing at all? time to croak baby!
 			
-			if ( $match_second eq undef )
-			{
-				 confess("Couldn't find '$message' on this screen!");
-			}
-			elsif ( $match_second =~/([A-Z,0-9]{1}) > /i )
+			defined $match_second or confess("Couldn't find '$message' on this screen!");
+			if ( $match_second =~/([A-Z,0-9]{1}) > /i )
 			{
 				$cmd = $1;
 				$self->log("\n looks like it's actually $cmd > $message . . . ");
@@ -917,7 +878,7 @@ sub findFileInList()
 	
 	# whoops, it ain't here, yo! & we've been told it should be
 	
-	if ( $list_id eq undef && $ret eq undef )
+	if ( ! defined $list_id && ! defined $ret )
 	{
 		confess("could not find '$file' in list");
 	}
@@ -955,14 +916,12 @@ sub sendRecordsToMarcFile()
 
 	# wait for it to finish
 		
-	my $done = 0;
 	my $rec = 0;
 	
-	while ( $done == 0  )
+	while ( 1 )
 	{
 		my $line = $ts->getline( Errmode => "return",timeout => 20 );
-				
-		# found a record
+        defined $line or last; # done if no record output
 
 		if ( $line =~ m/b[0-9]{7}/i )
 		{
@@ -981,13 +940,6 @@ sub sendRecordsToMarcFile()
 		if ( $rec % 1000 == 0 )
 		{
 			$self->log("\t $rec records examined for output\n");	
-		}
-
-		# no new line, so we are done
-		
-		if ( $line eq undef )
-		{
-			$done = 1;
 		}
 	}
 	
@@ -1148,23 +1100,20 @@ sub removeExportFile()
 	my $file = $self->getInternalFileName("out");
 	my $list_id = $self->findFileInList($ts, $file);
 	
-	if ( $list_id ne undef )
-	{
-		# remove it
-		
-		$self->log("Removing file . . . ");
-		
-		# it's either 'R' or 'X', not likely a problem to try both; 
-		# we do it this way, since the option is not always on the screen
-		
-		$ts->put("x"); 		
-		$ts->put("r"); 
-		
-		$ts->put("$list_id\n"); # choose this number
-		$ts->put("y"); # yes to confirm
-		
-		$self->log("done!\n");
-	}
+    defined $list_id or return;
+
+	$self->log("Removing file . . . ");
+	
+	# it's either 'R' or 'X', not likely a problem to try both; 
+	# we do it this way, since the option is not always on the screen
+	
+	$ts->put("x"); 		
+	$ts->put("r"); 
+	
+	$ts->put("$list_id\n"); # choose this number
+	$ts->put("y"); # yes to confirm
+	
+	$self->log("done!\n");
 }
 
 
@@ -1221,10 +1170,7 @@ sub ftpFile()
 
 	# ensure required params set
 	
-	if ( $remote_file eq undef )
-	{
-		confess("you must specify a name for the remote file when exporting marc records");
-	}
+	defined $remote_file or confess("you must specify a name for the remote file when exporting marc records");
 	
 	# use default internal name
 	
@@ -1316,7 +1262,7 @@ sub ftpFile()
 	# if it's large, we may need to wait longer, 
 	# so check it and increase if necessary
 	
-	if ( $size ne undef )
+	if ( defined $size )
 	{
 		my $wait_estimate = int( $size / 660 ); 
 		
@@ -1390,16 +1336,13 @@ sub createMarcByRange()
 	
 	# use default internal name if not defined
 	
-	if ( $file eq undef )
-	{
-		$file = $self->getInternalFileName("out");
-	}
-	
+	$file ||= $self->getInternalFileName("out");
+
 	$self->log("\n\n\nCreating file by range ");
 	
 	if ( $end > 0 )
 	{
-		 $self->log("($start - $end)");
+		$self->log("($start - $end)");
 	}
 	else
 	{
@@ -1560,25 +1503,14 @@ sub searchForRecordsModifiedSince()
 	
 	# ensure required params
 	
-	if ( $type eq undef )
-	{
-		confess("you must specify the record type: 'i' (item) or 'b' (bibliographic)");
-	}
+	$type or confess("you must specify the record type: 'i' (item) or 'b' (bibliographic)");
 	
-	if ( $year eq undef || length($year) != 4 )
+	if ( ! defined $year || length($year) != 4 )
 	{
 		confess("you must specify a four digit year when searching for modified records, you supplied '$year'");
 	}
-
-	if ( $month eq undef )
-	{
-		confess("you must specify a month when searching for modified records");
-	}
-
-	if ( $day eq undef )
-	{
-		confess("you must specify a day when searching for modified records");
-	}
+	defined $month or confess("you must specify a month when searching for modified records");
+	defined $day   or confess("you must specify a day when searching for modified records");
 
 	# this just for clarity in the logs
 
@@ -1657,7 +1589,7 @@ sub searchForRecordsModifiedSince()
 	$ts->put($day);
 	$ts->put($year);
 			
-	if ( $bcode ne undef )
+	if ( defined $bcode )
 	{
 		$self->log("\n AND ");
 		$ts->put("a");
@@ -1707,10 +1639,7 @@ sub createMarcFromReviewFile()
 
 	# use default internal name if not defined
 	
-	if ( $file eq undef )
-	{
-		$file = $self->getInternalFileName();
-	}
+	$file ||= $self->getInternalFileName();
 	
 	$self->log("\n\n\nCreating marc file from review file '$file'\n\n");
 	
@@ -1775,7 +1704,7 @@ sub findEmptyReviewFile()
 	
 	# set default
 	
-	if ( $min eq undef )
+	if ( ! defined $min )
 	{
 		$min = 5000;
 	}
@@ -1819,7 +1748,7 @@ sub findEmptyReviewFile()
 				$empty_files{$list_id} = $size;
 			}
 		}
-		elsif ( $match eq undef ) # didn't find any on this screen
+		elsif ( ! defined $match ) # didn't find any on this screen
 		{
 			$ts->put("f"); # so move forward in the list
 		}
@@ -1864,7 +1793,7 @@ sub findEmptyReviewFile()
 	
 	# found none, yike
 	
-	if ( $list_chosen eq undef )
+	if ( ! defined $list_chosen )
 	{
 		confess("could not find an empty review file with at least $min records"); 
 	}
@@ -1899,7 +1828,7 @@ sub prepareReviewFile()
 	
 	# yes we do, so blank it
 	
-	if ( $list_id ne undef )
+	if ( defined $list_id )
 	{
 		# we found our previous one, so choose that
 		
@@ -2053,7 +1982,7 @@ sub getInternalFileName()
 	
 	my $name = $self->{'internal_name'};
 	
-	if ( $suffix ne undef )
+	if ( $suffix )
 	{
 		$suffix =~ s/\.//g; # remove any periods
 		$name .= ".$suffix";
@@ -2085,10 +2014,7 @@ sub setLogDirectory()
 {
 	my ( $self, $path ) = @_;
 	
-	if ( $path eq undef )
-	{
-		$path = getcwd; # use current working directory
-	}
+	$path ||= getcwd; # use current working directory
 	
 	# make sure the path exists, yo
 	
