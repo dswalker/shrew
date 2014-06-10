@@ -454,12 +454,14 @@ class Sierra
 			WHERE
 				record_type_code = 'b' AND
 				campus_code = '' AND 
-				record_last_updated_gmt > :modified_date
+				( record_last_updated_gmt > :modified_date OR deletion_date_gmt > :modified_date) 
 			ORDER BY
 				record_last_updated_gmt DESC NULLS LAST 
 		");
 
-		return $this->getResults($sql, array(':modified_date' => $date));
+		$results = $this->getResults($sql, array(':modified_date' => $date));
+		
+		return $results;
 	}
 	
 	/**
@@ -504,13 +506,12 @@ class Sierra
 				record_metadata.record_type_code = 'b' AND
 				record_metadata.campus_code = '' AND
 				record_metadata.deletion_date_gmt IS NULL AND
-				bib_view.BCODE3 = '-' AND
 				sierra_view.record_metadata.id = sierra_view.bib_view.id
 			ORDER BY
 				record_last_updated_gmt DESC NULLS LAST
 		");
 
-		if ( $limit != null )
+		if ( $limit != null && $offset != 0 )
 		{
 			$sql .= " LIMIT $limit, $offset";
 		}		
@@ -604,7 +605,14 @@ class Sierra
 	{
 		if ( ! $this->pdo instanceof PDO )
 		{
-			$this->pdo = new PDO('pgsql:host=' . $this->host . ';port=' . $this->port . ';dbname=' . $this->dbname, $this->username, $this->password);
+			$dsn = 'pgsql:host=' . $this->host . ';' .
+				'port=' . $this->port . ';' .
+				'dbname=' . $this->dbname . ';' .
+				'user=' . $this->username . ';' .
+				'password=' . $this->password . ';' . 
+				'sslmode=require';
+
+			$this->pdo = new PDO($dsn);
 			$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		}
 		
