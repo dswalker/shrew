@@ -195,8 +195,11 @@ class Sierra
 		
 		$record->setLeader($leader);
 		
+		
+		### NON-STANDARD 907 & 998
+		
 		// innovative bib record fields
-
+		
 		$bib_field = new File_MARC_Data_Field('907');
 		$record->appendField($bib_field);
 		$bib_field->appendSubfield(new File_MARC_Subfield('a', $this->getFullRecordId($id)));
@@ -210,6 +213,17 @@ class Sierra
 		$bib_field->appendSubfield(new File_MARC_Subfield('d', trim($result['bcode1'])));
 		$bib_field->appendSubfield(new File_MARC_Subfield('e', trim($result['bcode2'])));
 		$bib_field->appendSubfield(new File_MARC_Subfield('f', trim($result['bcode3'])));
+		
+		
+		### STANDARD 933
+		
+		$bib_field = new File_MARC_Data_Field('933');
+		$record->appendField($bib_field);
+		$bib_field->appendSubfield(new File_MARC_Subfield('a', $this->getFullRecordId($id)));
+		$bib_field->appendSubfield(new File_MARC_Subfield('b', trim($result['bcode3'])));
+		$bib_field->appendSubfield(new File_MARC_Subfield('c', trim($result['cataloging_date_gmt'])));
+		$bib_field->appendSubfield(new File_MARC_Subfield('d', trim($result['bcode1'])));
+		$bib_field->appendSubfield(new File_MARC_Subfield('e', trim($result['bcode2'])));
 		
 		// marc fields
 		
@@ -337,9 +351,9 @@ class Sierra
 		
 		$this->total = count($results);
 		
-		// split them into chunks of 100k
+		// split them into chunks of 30k
 		
-		$chunks = array_chunk($results, 50000);
+		$chunks = array_chunk($results, 30000);
 		$x = 1; // file number
 		$y = 1; // number of records's processed
 		
@@ -395,7 +409,7 @@ class Sierra
 			$x++;
 			
 			// blank this so PDO will create a new connection
-			// otherwise after about ~70,000 queries the server 
+			// otherwise after about ~50,000 queries the server 
 			// will drop the connection with an error
 			
 			$this->pdo = null; 
@@ -423,6 +437,9 @@ class Sierra
 		$control_field = new File_MARC_Control_Field('001', "deleted:$id");
 		$record->appendField($control_field);
 		
+		
+		### NON-STANDARD 907 & 998
+		
 		// bib id field
 		
 		$bib_field = new File_MARC_Data_Field('907');
@@ -434,7 +451,15 @@ class Sierra
 		$bib_field = new File_MARC_Data_Field('998');
 		$record->appendField($bib_field);
 		$bib_field->appendSubfield(new File_MARC_Subfield('f', 'd'));
-
+		
+		
+		###  STANDARD 933
+		
+		$bib_field = new File_MARC_Data_Field('933');
+		$record->appendField($bib_field);
+		$bib_field->appendSubfield(new File_MARC_Subfield('a', $this->getFullRecordId($id))); // bib id field
+		$bib_field->appendSubfield(new File_MARC_Subfield('b', 'd')); // mark as deleted
+		
 		return $record;
 	}
 	
